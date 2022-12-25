@@ -154,6 +154,13 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 	  (macrursors-start)))
     (error "No region active")))
 
+(defun macrursors--forward-number ()
+  (interactive)
+  (let ((closest-ahead (save-excursion (search-forward-regexp "[0-9]" nil t))))
+    (when closest-ahead
+      (push-mark)
+      (goto-char closest-ahead))))
+
 ;;;###autoload
 (defmacro macrursors--defun-mark-all (name thing func)
   `(defun ,name ()
@@ -194,11 +201,57 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 			    'list
 			    #'forward-list)
 ;;;###autoload
-(macrursors--defun-mark-all macrursors-mark-all-lines
-			    'line
-			    (lambda ()
-			      (forward-line)
-			      (end-of-line)))
+(macrursors--defun-mark-all macrursors-mark-all-sexps
+			    'sexp
+			    #'forward-sexp)
+;;;###autoload
+(macrursors--defun-mark-all macrursors-mark-all-defuns
+			    'defun
+			    #'end-of-defun)
+;;;###autoload
+(macrursors--defun-mark-all macrursors-mark-all-numbers
+			    'number
+			    #'macrursors--forward-number)
+;;;###autoload
+(macrursors--defun-mark-all macrursors-mark-all-sentences
+			    'sentence
+			    #'forward-sentence)
+;; FIXME there is no forward-url function
+;; (macrursors--defun-mark-all macrursors-mark-all-urls
+;; 			    'url
+;; 			    #'forward-url)
+;; FIXME there is no forward-email function
+;; (macrursors--defun-mark-all macrursors-mark-all-sexp
+;; 			    'word
+;; 			    #'forward-sexp)
+
+;;;###autoload
+(defun macrursors-mark-all-lines ()
+  (interactive)
+  (when mark-active (deactivate-mark))
+  (let ((start (if (macrursors--inside-secondary-selection)
+		   (overlay-start mouse-secondary-overlay)
+		 0))
+	(end (if (macrursors--inside-secondary-selection)
+		 (overlay-end mouse-secondary-overlay)
+	       (point-max)))
+	(col (current-column)))
+    (save-excursion
+      (while (and (let ((curr (point)))
+		  (call-interactively #'previous-line)
+		  (forward-line -1)
+		  (move-to-column col)
+		  (not (= (point) curr)))
+		(>= (point) start))
+	(macrursors--add-overlay-at-point (point))))
+    (save-excursion
+      (while (and (let ((curr (point)))
+		  (forward-line 1)
+		  (move-to-column col)
+		  (not (= (point) curr)))
+		(<= (point) end))
+	(macrursors--add-overlay-at-point (point))))
+    (macrursors-start)))
 
 (defun macrursors-start ()
   "Start kmacro recording, apply to all cursors when terminate."
