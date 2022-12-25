@@ -84,7 +84,7 @@ and re-enable them in `macrursors-postapply-command'."
   :keymap
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd macrursors-apply-keys) #'macrursors-end)
-    (define-key map (kbd "C-g") #'macrusors-early-quit)
+    (define-key map (kbd "C-g") #'macrursors-early-quit)
     map))
 
 (defun macrursors--second-sel-set-string (string)
@@ -224,10 +224,14 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
     (error "No region active")))
 
 ;;;###autoload
-(defmacro macrursors--defun-mark-all (name func)
+(defmacro macrursors--defun-mark-all (name thing func)
   `(defun ,name ()
      (interactive)
      (when mark-active (deactivate-mark))
+     (let ((end-of-thing (cdr (bounds-of-thing-at-point ,thing))))
+       (if end-of-thing
+	   (goto-char end-of-thing)
+	 (funcall ,func)))
      (let ((orig-point (point))
 	   (start (if (macrursors--inside-secondary-selection)
 		      (overlay-start mouse-secondary-overlay)
@@ -238,21 +242,32 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
        (save-excursion
 	 (goto-char start)
 	 (while (and (let ((curr (point)))
-		       (funcall ,func)
-		       (not (= (point) curr)))
-		     (<= (point) end))
+		     (funcall ,func)
+		     (not (= (point) curr)))
+		   (<= (point) end))
 	   (unless (= (point) orig-point)
 	     (macrursors--add-overlay-at-point (point)))))
        (macrursors-start))))
 
 ;;;###autoload
-(macrursors--defun-mark-all macrursors-mark-all-words #'forward-word)
+(macrursors--defun-mark-all macrursors-mark-all-words
+			    'word
+			    #'forward-word)
 ;;;###autoload
-(macrursors--defun-mark-all macrursors-mark-all-symbols (lambda () (call-interactively #'forward-symbol)))
+(macrursors--defun-mark-all macrursors-mark-all-symbols
+			    'symbol
+			    (lambda ()
+			      (call-interactively #'forward-symbol)))
 ;;;###autoload
-(macrursors--defun-mark-all macrursors-mark-all-lists #'forward-list)
+(macrursors--defun-mark-all macrursors-mark-all-lists
+			    'list
+			    #'forward-list)
 ;;;###autoload
-(macrursors--defun-mark-all macrursors-mark-all-lines #'forward-line)
+(macrursors--defun-mark-all macrursors-mark-all-lines
+			    'line
+			    (lambda ()
+			      (forward-line)
+			      (end-of-line)))
 
 (defun macrursors-start ()
   "Start kmacro recording, apply to all cursors when terminate."
@@ -313,7 +328,7 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
     (macrursors-mode -1)))
 
 ;;;###autoload
-(defun macrusors-early-quit ()
+(defun macrursors-early-quit ()
   "Used to quit out of recording the macro for the cursors."
   (interactive)
   (when defining-kbd-macro (end-kbd-macro))
@@ -321,4 +336,4 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
   (macrursors-mode -1))
 
 (provide 'macrursors)
-;;; macrusors.el ends here
+;;; macrursors.el ends here
