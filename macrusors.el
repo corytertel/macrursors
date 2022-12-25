@@ -27,26 +27,23 @@
 (defvar-local macrursors--overlays nil)
 (defvar-local macrursors--insert-enter-key nil)
 
-
-
 (defgroup macrursors nil
   "Macrursors, a multi-edit tool for GNU Emacs."
   :group 'editing)
 
 (defface macrursors-cursor-face
   '((t (:inverse-video t)))
-  "The face used for fake cursors"
+  "The face used for fake cursors."
   :group 'macrursors)
 
 (defface macrursors-cursor-bar-face
   `((t (:height 1 :background ,(face-attribute 'cursor :background))))
-  "The face used for fake cursors if the cursor-type is bar"
+  "The face used for fake cursors if the `cursor-type' is bar."
   :group 'macrursors)
 
 (defcustom macrursors-match-cursor-style t
-  "If non-nil, attempt to match the cursor style that the user
-has selected.  Namely, use vertical bars the user has configured
-Emacs to use that cursor.
+  "If non-nil, attempt to match the cursor style that the user has selected.
+Namely, use vertical bars the user has configured Emacs to use that cursor.
 If nil, just use standard rectangle cursors for all fake cursors.
 In some modes/themes, the bar fake cursors are either not
 rendered or shift text."
@@ -55,7 +52,7 @@ rendered or shift text."
 
 (defface macrursors-region-face
   '((t :inherit region))
-  "The face used for fake regions"
+  "The face used for fake regions."
   :group 'macrursors)
 
 (defcustom macrursors-preapply-command (lambda ())
@@ -81,8 +78,6 @@ and re-enable them in `macrursors-postapply-command'."
   :type 'key-sequence
   :group 'macrursors)
 
-
-
 (define-minor-mode macrursors-mode
   "Minor mode for when macrursors in active."
   :lighter "macrursors"
@@ -91,8 +86,6 @@ and re-enable them in `macrursors-postapply-command'."
     (define-key map (kbd macrursors-apply-keys) #'macrursors-end)
     (define-key map (kbd "C-g") #'macrusors-early-quit)
     map))
-
-
 
 (defun macrursors--second-sel-set-string (string)
   (cond
@@ -117,6 +110,7 @@ and re-enable them in `macrursors-postapply-command'."
   (and (overlayp mouse-secondary-overlay)
        (overlay-buffer mouse-secondary-overlay)))
 
+;;;###autoload
 (defun macrursors-grab ()
   "Create secondary selection or a marker if no region available."
   (interactive)
@@ -128,6 +122,7 @@ and re-enable them in `macrursors-postapply-command'."
       (move-marker mouse-secondary-start (point))))
   (deactivate-mark t))
 
+;;;###autoload
 (defun macrursors-swap-grab ()
   "Swap region and secondary selection."
   (interactive)
@@ -145,6 +140,7 @@ and re-enable them in `macrursors-postapply-command'."
     (setq mouse-secondary-start next-marker)
     (deactivate-mark t)))
 
+;;;###autoload
 (defun macrursors-sync-grab ()
   "Sync secondary selection with current region."
   (interactive)
@@ -159,8 +155,6 @@ and re-enable them in `macrursors-postapply-command'."
 	(delete-overlay mouse-secondary-overlay))
       (setq mouse-secondary-start next-marker)
       (deactivate-mark t))))
-
-
 
 (defun macrursors--inside-secondary-selection ()
   (and
@@ -207,6 +201,7 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
       (unless (= loc orig-point) (macrursors--add-overlay-at-point loc))
       (macrursors--mark-all-instances-of string orig-point end))))
 
+;;;###autoload
 (defun macrursors-mark-all-instances-of ()
   (interactive)
   (if (and transient-mark-mode mark-active (not (eq (mark) (point))))
@@ -228,31 +223,116 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 	  (macrursors-start)))
     (error "No region active")))
 
-(defmacro macrursors--defun-mark-all (name func)
-  `(defun ,name ()
-     (interactive)
-     (when mark-active (deactivate-mark))
-     (let ((orig-point (point))
-	   (start (if (macrursors--inside-secondary-selection)
-		      (overlay-start mouse-secondary-overlay)
-		    0))
-	   (end (if (macrursors--inside-secondary-selection)
-		    (overlay-end mouse-secondary-overlay)
-		  (point-max))))
-       (save-excursion
-	 (goto-char start)
-	 (while (and (let ((curr (point)))
-		       (funcall ,func)
-		       (not (= (point) curr)))
-		     (<= (point) end))
-	   (unless (= (point) orig-point)
-	     (macrursors--add-overlay-at-point (point)))))
-       (macrursors-start))))
+;;; FIXME
+;; (defmacro macrursors--defun-mark-all (name func)
+;;   `(defun ,name ()
+;;      (interactive)
+;;      (when mark-active (deactivate-mark))
+;;      (let ((orig-point (point))
+;; 	   (start (if (macrursors--inside-secondary-selection)
+;; 		      (overlay-start mouse-secondary-overlay)
+;; 		    0))
+;; 	   (end (if (macrursors--inside-secondary-selection)
+;; 		    (overlay-end mouse-secondary-overlay)
+;; 		  (point-max))))
+;;        (save-excursion
+;; 	 (goto-char start)
+;; 	 (while (and (let ((curr (point)))
+;; 		       (funcall ,func)
+;; 		       (not (= (point) curr)))
+;; 		     (<= (point) end))
+;; 	   (unless (= (point) orig-point)
+;; 	     (macrursors--add-overlay-at-point (point)))))
+;;        (macrursors-start))))
 
-(macrursors--defun-mark-all macrursors-mark-all-words #'forward-word)
-(macrursors--defun-mark-all macrursors-mark-all-symbols (lambda () (call-interactively #'forward-symbol)))
-(macrursors--defun-mark-all macrursors-mark-all-lists #'forward-list)
-(macrursors--defun-mark-all macrursors-mark-all-lines #'forward-line)
+;; (macrursors--defun-mark-all macrursors-mark-all-words #'forward-word)
+;; (macrursors--defun-mark-all macrursors-mark-all-symbols (lambda () (call-interactively #'forward-symbol)))
+;; (macrursors--defun-mark-all macrursors-mark-all-lists #'forward-list)
+;; (macrursors--defun-mark-all macrursors-mark-all-lines #'forward-line)
+
+;;;###autoload
+(defun macrursors-mark-all-words ()
+  (interactive)
+  (when mark-active (deactivate-mark))
+  (let ((orig-point (point))
+	(start (if (macrursors--inside-secondary-selection)
+		   (overlay-start mouse-secondary-overlay)
+		 0))
+	(end (if (macrursors--inside-secondary-selection)
+		 (overlay-end mouse-secondary-overlay)
+	       (point-max))))
+    (save-excursion
+      (goto-char start)
+      (while (and (let ((curr (point)))
+		    (funcall #'forward-word)
+		    (not (= (point) curr)))
+		  (<= (point) end))
+	(unless (= (point) orig-point)
+	  (macrursors--add-overlay-at-point (point)))))
+    (macrursors-start)))
+
+;;;###autoload
+(defun macrursors-mark-all-symbols ()
+  (interactive)
+  (when mark-active (deactivate-mark))
+  (let ((orig-point (point))
+	(start (if (macrursors--inside-secondary-selection)
+		   (overlay-start mouse-secondary-overlay)
+		 0))
+	(end (if (macrursors--inside-secondary-selection)
+		 (overlay-end mouse-secondary-overlay)
+	       (point-max))))
+    (save-excursion
+      (goto-char start)
+      (while (and (let ((curr (point)))
+		    (funcall (lambda () (call-interactively #'forward-symbol)))
+		    (not (= (point) curr)))
+		  (<= (point) end))
+	(unless (= (point) orig-point)
+	  (macrursors--add-overlay-at-point (point)))))
+    (macrursors-start)))
+
+;;;###autoload
+(defun macrursors-mark-all-lists ()
+  (interactive)
+  (when mark-active (deactivate-mark))
+  (let ((orig-point (point))
+	(start (if (macrursors--inside-secondary-selection)
+		   (overlay-start mouse-secondary-overlay)
+		 0))
+	(end (if (macrursors--inside-secondary-selection)
+		 (overlay-end mouse-secondary-overlay)
+	       (point-max))))
+    (save-excursion
+      (goto-char start)
+      (while (and (let ((curr (point)))
+		    (funcall #'forward-list)
+		    (not (= (point) curr)))
+		  (<= (point) end))
+	(unless (= (point) orig-point)
+	  (macrursors--add-overlay-at-point (point)))))
+    (macrursors-start)))
+
+;;;###autoload
+(defun macrursors-mark-all-line ()
+  (interactive)
+  (when mark-active (deactivate-mark))
+  (let ((orig-point (point))
+	(start (if (macrursors--inside-secondary-selection)
+		   (overlay-start mouse-secondary-overlay)
+		 0))
+	(end (if (macrursors--inside-secondary-selection)
+		 (overlay-end mouse-secondary-overlay)
+	       (point-max))))
+    (save-excursion
+      (goto-char start)
+      (while (and (let ((curr (point)))
+		    (funcall #'forward-line)
+		    (not (= (point) curr)))
+		  (<= (point) end))
+	(unless (= (point) orig-point)
+	  (macrursors--add-overlay-at-point (point)))))
+    (macrursors-start)))
 
 (defun macrursors-start ()
   "Start kmacro recording, apply to all cursors when terminate."
@@ -300,6 +380,7 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 
 ;; NOTE DOES NOT WORK WHEN CALLED FROM M-x!!!
 ;; FIXME applying time
+;;;###autoload
 (defun macrursors-end ()
   (interactive)
   (if (not defining-kbd-macro)
@@ -311,6 +392,7 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
     (macrursors--remove-overlays)
     (macrursors-mode -1)))
 
+;;;###autoload
 (defun macrusors-early-quit ()
   "Used to quit out of recording the macro for the cursors."
   (interactive)
