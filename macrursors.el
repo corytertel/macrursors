@@ -87,83 +87,14 @@ and re-enable them in `macrursors-postapply-command'."
     (define-key map (kbd "C-g") #'macrursors-early-quit)
     map))
 
-(defun macrursors--second-sel-set-string (string)
-  (cond
-   ((macrursors--second-sel-buffer)
-    (with-current-buffer (overlay-buffer mouse-secondary-overlay)
-      (goto-char (overlay-start mouse-secondary-overlay))
-      (delete-region (overlay-start mouse-secondary-overlay) (overlay-end mouse-secondary-overlay))
-      (insert string)))
-   ((markerp mouse-secondary-start)
-    (with-current-buffer (marker-buffer mouse-secondary-start)
-      (goto-char (marker-position mouse-secondary-start))
-      (insert string)))))
-
-(defun macrursors--second-sel-get-string ()
-  (when (macrursors--second-sel-buffer)
-    (with-current-buffer (overlay-buffer mouse-secondary-overlay)
-      (buffer-substring-no-properties
-       (overlay-start mouse-secondary-overlay)
-       (overlay-end mouse-secondary-overlay)))))
-
-(defun macrursors--second-sel-buffer ()
-  (and (overlayp mouse-secondary-overlay)
-       (overlay-buffer mouse-secondary-overlay)))
-
-;;;###autoload
-(defun macrursors-grab ()
-  "Create secondary selection or a marker if no region available."
-  (interactive)
-  (if (region-active-p)
-      (secondary-selection-from-region)
-    (progn
-      (delete-overlay mouse-secondary-overlay)
-      (setq mouse-secondary-start (make-marker))
-      (move-marker mouse-secondary-start (point))))
-  (deactivate-mark t))
-
-;;;###autoload
-(defun macrursors-swap-grab ()
-  "Swap region and secondary selection."
-  (interactive)
-  (let* ((rbeg (region-beginning))
-         (rend (region-end))
-         (region-str (when (region-active-p) (buffer-substring-no-properties rbeg rend)))
-         (sel-str (macrursors--second-sel-get-string))
-         (next-marker (make-marker)))
-    (when region-str (delete-region rbeg rend))
-    (when sel-str (insert sel-str))
-    (move-marker next-marker (point))
-    (macrursors--second-sel-set-string (or region-str ""))
-    (when (overlayp mouse-secondary-overlay)
-      (delete-overlay mouse-secondary-overlay))
-    (setq mouse-secondary-start next-marker)
-    (deactivate-mark t)))
-
-;;;###autoload
-(defun macrursors-sync-grab ()
-  "Sync secondary selection with current region."
-  (interactive)
-  (when (region-active-p)
-    (let* ((rbeg (region-beginning))
-           (rend (region-end))
-           (region-str (buffer-substring-no-properties rbeg rend))
-           (next-marker (make-marker)))
-      (move-marker next-marker (point))
-      (macrursors--second-sel-set-string region-str)
-      (when (overlayp mouse-secondary-overlay)
-	(delete-overlay mouse-secondary-overlay))
-      (setq mouse-secondary-start next-marker)
-      (deactivate-mark t))))
-
 (defun macrursors--inside-secondary-selection ()
   (and
    (secondary-selection-exist-p)
    (< (overlay-start mouse-secondary-overlay)
       (overlay-end mouse-secondary-overlay))
    (<= (overlay-start mouse-secondary-overlay)
-       (point)
-       (overlay-end mouse-secondary-overlay))))
+      (point)
+      (overlay-end mouse-secondary-overlay))))
 
 ;; TODO maybe add support for multiple types of cursor types
 (defun macrursors--add-overlay-at-point (pos)
