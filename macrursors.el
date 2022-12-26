@@ -238,7 +238,6 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 	(col (current-column)))
     (save-excursion
       (while (and (let ((curr (point)))
-		  (call-interactively #'previous-line)
 		  (forward-line -1)
 		  (move-to-column col)
 		  (not (= (point) curr)))
