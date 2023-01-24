@@ -154,6 +154,55 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 	  (macrursors-start)))
     (error "No region active")))
 
+(defun macrursors--mark-next-instance-of (string &optional end)
+  (let ((loc (re-search-forward string end t 1)))
+    (when loc
+      (if (member loc (macrursors--get-overlay-positions))
+	  (macrursors--mark-next-instance-of string end)
+	(macrursors--add-overlay-at-point loc)))))
+
+;;;###autoload
+(defun macrursors-mark-next-instance-of ()
+  (interactive)
+  (when defining-kbd-macro (end-kbd-macro))
+  (if (and transient-mark-mode mark-active (not (eq (mark) (point))))
+      (progn
+	(if (> (mark) (point))
+	    (exchange-point-and-mark))
+	(let ((region (buffer-substring-no-properties (mark) (point)))
+	      (end (if (macrursors--inside-secondary-selection)
+		       (overlay-end mouse-secondary-overlay)
+		     nil)))
+	  (save-excursion
+	    (macrursors--mark-next-instance-of region end))
+	  (macrursors-start)))
+    (error "No region active")))
+
+(defun macrursors--mark-previous-instance-of (string &optional end)
+  (let ((loc (re-search-forward string end t -1)))
+    (when loc
+      (if (member (+ loc (length string)) (macrursors--get-overlay-positions))
+	  (macrursors--mark-previous-instance-of string end)
+	(macrursors--add-overlay-at-point (+ loc (length string)))))))
+
+;;;###autoload
+(defun macrursors-mark-previous-instance-of ()
+  (interactive)
+  (when defining-kbd-macro (end-kbd-macro))
+  (if (and transient-mark-mode mark-active (not (eq (mark) (point))))
+      (progn
+	(if (> (mark) (point))
+	    (exchange-point-and-mark))
+	(let ((region (buffer-substring-no-properties (mark) (point)))
+	      (end (if (macrursors--inside-secondary-selection)
+		       (overlay-start mouse-secondary-overlay)
+		     0)))
+	  (save-excursion
+	    (goto-char (mark))
+	    (macrursors--mark-previous-instance-of region end))
+	  (macrursors-start)))
+    (error "No region active")))
+
 (defun macrursors--forward-number ()
   (interactive)
   (let ((closest-ahead (save-excursion (search-forward-regexp "[0-9]" nil t))))
@@ -252,6 +301,15 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 	(macrursors--add-overlay-at-point (point))))
     (macrursors-start)))
 
+;;;###autoload
+(defun macrursors-mark-all-lines-or-instances ()
+  "If a selection exists, mark all instances of the selection.
+Else, mark all lines."
+  (interactive)
+  (if (and transient-mark-mode mark-active (not (eq (mark) (point))))
+      (macrursors-mark-all-instances-of)
+    (macrursors-mark-all-lines)))
+
 (defun macrursors-start ()
   "Start kmacro recording, apply to all cursors when terminate."
   (interactive)
@@ -314,9 +372,15 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 (defun macrursors-early-quit ()
   "Used to quit out of recording the macro for the cursors."
   (interactive)
-  (when defining-kbd-macro (end-kbd-macro))
-  (macrursors--remove-overlays)
-  (macrursors-mode -1))
+  (if (region-active-p)
+      (progn
+	(deactivate-mark)
+	(when defining-kbd-macro
+	  (end-kbd-macro)
+	  (macrursors-start)))
+    (when defining-kbd-macro (end-kbd-macro))
+    (macrursors--remove-overlays)
+    (macrursors-mode -1)))
 
 (provide 'macrursors)
 ;;; macrursors.el ends here

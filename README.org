@@ -1,0 +1,120 @@
+#+TITLE: Macrursors
+A faster, more minimal alternative to [[https://github.com/magnars/multiple-cursors.el][multiple-cursors.el]].
+
+* Overview
+
+Macrursors leverages kmacro and emacs' overlays to make a fast and extremely minimal multiple-cursor-like editing experience.
+
+** Speed
+
+Macrursors is fast! Multiple cursors runs in O(n*m) whereas Macrursors runs in O(n),
+where ~n = # of cursors~ and ~m = # of actions~. A much needed improvement. This is due to macrursors not having live feedback on every cursor. Edits at each cursors are applied after you are done, not while editing. Applying after means that the expensive cost of edits at many places is only experienced when you are done, not while you are working.
+
+Macrursors also gives you the abilty to temporily turn off minor modes, change the setting of variables, and more while the edits are applying. Anything that is unneeded while applying edits (like auto-complete popups) is recommended to be temporarily turned off to further increase the speed.
+
+#+begin_src emacs-lisp
+;; The following code will turn off corfu only when the edits are being applied
+(setq macrursors-preapply-command
+  (lambda () (corfu-mode -1)))
+(setq macrursors-postapply-command
+  (lambda () (corfu-mode 1)))
+#+end_src
+
+** Size
+
+Macrursors is minimal! It has no external dependencies.
+
+** Workflow
+
+To use macrursors you can spawn a cursor at every line, word, s-exp, list, sentence, etc. From there make all edits you like and then apply the edits.
+
+Unlike multiple cursors, macrursors has the ability to restrict all edits to a secondary selection. Directly inspired by [[https://github.com/meow-edit/meow][meow]], you can mark a selection as a secondary selection. Instead of spawning cursors across the entire buffer, the cursors will be limited to the secondary selection, a.k.a. "workspace".
+
+These commands can help navigating secondary selections easier.
+
+#+begin_src emacs-lisp
+(defun beginning-of-workspace ()
+  "If a secondary selection is active, goto the beginning of it.
+Else, goto the beginning of the buffer."
+  (interactive)
+  (if (and
+      (secondary-selection-exist-p)
+      (< (overlay-start mouse-secondary-overlay)
+	 (overlay-end mouse-secondary-overlay))
+      (<= (overlay-start mouse-secondary-overlay)
+	 (point)
+	 (overlay-end mouse-secondary-overlay)))
+      (goto-char (overlay-start mouse-secondary-overlay))
+    (goto-char (point-min))))
+
+(defun end-of-workspace ()
+  "If a secondary selection is active, goto the end of it.
+Else, goto the end of the buffer."
+  (interactive)
+  (if (and
+      (secondary-selection-exist-p)
+      (< (overlay-start mouse-secondary-overlay)
+	 (overlay-end mouse-secondary-overlay))
+      (<= (overlay-start mouse-secondary-overlay)
+	 (point)
+	 (overlay-end mouse-secondary-overlay)))
+      (goto-char (- (overlay-end mouse-secondary-overlay) 1))
+    (goto-char (point-max))))
+
+(global-set-key (kbd "M-<") #'beginning-of-workspace)
+(global-set-key (kbd "M->") #'end-of-workspace)
+#+end_src
+
+Macrursors also has support to spawn a cursor at the direct next instance of something, without need for any selections.
+
+** Warnings
+
+Macrursors is still in early development. Bugs are to be expected.
+
+When invoked with ~M-x~ macrursors commands do not work. Only execute the commands through bound keys.
+
+** Motivation
+
+[[https://github.com/magnars/multiple-cursors.el][multiple-cursors.el]] was too slow and heavy.
+
+* Install
+
+Macrursors is not yet on Melpa, so you will need to manually add ~macrursors.el~ to your load path.
+
+* Usage
+
+Example set up of macrursors.
+
+#+begin_src emacs-lisp
+(use-package macrursors
+  :custom
+  (macrursors-preapply-command
+   (lambda ()
+     (corfu-mode -1)
+     (goggles-mode -1)
+     (beacon-mode -1)))
+  (macrursors-postapply-command
+   (lambda ()
+     (corfu-mode 1)
+     (goggles-mode 1)
+     (beacon-mode 1)))
+  :config
+  (define-prefix-command 'macrursors-mark-map)
+  (global-set-key (kbd "C-'") #'macrursors-mark-next-instance-of)
+  (global-set-key (kbd "C-\"") #'macrursors-mark-previous-instance-of)
+  (global-set-key (kbd "C-;") 'macrursors-mark-map)
+  (define-key macrursors-mark-map (kbd "C-;") #'macrursors-mark-all-lines-or-instances)
+  (define-key macrursors-mark-map (kbd ";") #'macrursors-mark-all-lines-or-instances)
+  (define-key macrursors-mark-map (kbd "l") #'macrursors-mark-all-lists)
+  (define-key macrursors-mark-map (kbd "s") #'macrursors-mark-all-symbols)
+  (define-key macrursors-mark-map (kbd "e") #'macrursors-mark-all-sexps)
+  (define-key macrursors-mark-map (kbd "f") #'macrursors-mark-all-defuns)
+  (define-key macrursors-mark-map (kbd "n") #'macrursors-mark-all-numbers)
+  (define-key macrursors-mark-map (kbd ".") #'macrursors-mark-all-sentences)
+  (define-key macrursors-mark-map (kbd "r") #'macrursors-mark-all-lines))
+#+end_src
+
+* Documentation
+
+* License
+Copyright (c) 2023 Licensed under the GPL3 License.
