@@ -82,6 +82,9 @@ and re-enable them in `macrursors-post-finish-hook'."
   :type 'key-sequence
   :group 'macrursors)
 
+(defvar-local macrursors--instance nil
+  "The thing last used to create macrursors.")
+
 (define-minor-mode macrursors-mode
   "Minor mode for when macrursors in active."
   :lighter macrursors-mode-line
@@ -147,26 +150,31 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
       (macrursors--add-overlay-at-point (point)))))
 
 ;;;###autoload
-(defun macrursors-mark-all-instances-of ()
+(defun macrursors-mark-all-instances-of (&optional regexp)
   (interactive)
-  (if (use-region-p)
-      (progn
-	(let* ((region (buffer-substring-no-properties (region-beginning)
-                                                      (region-end)))
-               (orig-point (region-end))
-               (selection-p (macrursors--inside-secondary-selection))
-               (start (if selection-p
-			 (overlay-start mouse-secondary-overlay)
-                        0))
-               (end (and selection-p
-                         (overlay-end mouse-secondary-overlay))))
-	  (goto-char orig-point)
-          (save-excursion
-	    (goto-char start)
-	    (macrursors--mark-all-instances-of region orig-point end))
-	  (deactivate-mark)
-	  (macrursors-start)))
-    (error "No region active")))
+  (let* ((selection-p (macrursors--inside-secondary-selection))
+         (start (if selection-p
+	            (overlay-start mouse-secondary-overlay)
+                  0))
+         (end (and selection-p
+                   (overlay-end mouse-secondary-overlay)))
+         region orig-point)
+    (cond
+     (regexp (setq region regexp
+                   orig-point (point)))
+     ((use-region-p)
+      (setq region (buffer-substring-no-properties
+                    (region-beginning)
+                    (region-end))
+            orig-point (region-end)))
+     (t (error "No region active")))
+    (goto-char orig-point)
+    (save-excursion
+      (goto-char start)
+      (macrursors--mark-all-instances-of region orig-point end))
+    (deactivate-mark)
+    (setq macrursors--instance region)
+    (macrursors-start)))
 
 (defun macrursors--mark-next-instance-of (string &optional end)
   (let ((cursor-positions (macrursors--get-overlay-positions))
@@ -193,6 +201,7 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 	  (goto-char (region-end))
           (save-excursion
 	    (macrursors--mark-next-instance-of region end))
+          (setq macrursors--instance region)
 	  (macrursors-start)))
     (error "No region active")))
 
@@ -223,7 +232,8 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
           (save-excursion
 	    (goto-char (region-beginning))
 	    (macrursors--mark-previous-instance-of region end))
-	  (macrursors-start)))
+          (setq macrursors--instance region)
+          (macrursors-start)))
     (error "No region active")))
 
 (defun macrursors--forward-number ()
@@ -257,6 +267,7 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 		   (<= (point) end))
 	   (unless (= (point) orig-point)
 	     (macrursors--add-overlay-at-point (point)))))
+       (setq macrursors--instance ,thing)
        (macrursors-start))))
 
 ;;;###autoload
@@ -322,6 +333,7 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 		    (not (= (point) curr)))
 		  (<= (point) end))
 	(macrursors--add-overlay-at-point (point))))
+    (setq macrursors--instance 'line)
     (macrursors-start)))
 
 ;;;###autoload
