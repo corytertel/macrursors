@@ -82,12 +82,24 @@ and re-enable them in `macrursors-postapply-command'."
 
 (define-minor-mode macrursors-mode
   "Minor mode for when macrursors in active."
-  :lighter "macrursors"
+  :lighter macrursors-mode-line
   :keymap
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd macrursors-apply-keys) #'macrursors-end)
     (define-key map (kbd "C-g") #'macrursors-early-quit)
     map))
+
+(defcustom macrursors-mode-line
+  '(" MAC:" (:eval (if macrursors--overlays
+                       (format (propertize "%d/%d" 'face 'font-lock-warning-face)
+                        (1+ (cl-count-if (lambda (p) (< p (point))) macrursors--overlays
+                             :key #'overlay-start))
+                        (1+ (length macrursors--overlays)))
+                     (propertize "1/1" 'face 'font-lock-warning-face))))
+  "Mode-line format for Macrursors."
+  :type 'string
+  :risky t
+  :group 'macrursors)
 
 (defun macrursors--inside-secondary-selection ()
   (and-let*
