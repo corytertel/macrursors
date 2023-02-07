@@ -155,10 +155,15 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
     (error "No region active")))
 
 (defun macrursors--mark-next-instance-of (string &optional end)
-  (let ((cursor-positions (macrursors--get-overlay-positions)))
-    (while (and (search-forward string end t 1)
+  (let ((cursor-positions (macrursors--get-overlay-positions))
+        (matched-p))
+    (while (and (setq matched-p
+                      (re-search-forward string end t 1))
                 (member (point) cursor-positions)))
-    (when (< (point) (or end (point-max)))
+    (if (or (not matched-p)
+            (> (point) (or end (point-max)))
+            (member (point) cursor-positions))
+        (message "No more matches.")
       (macrursors--add-overlay-at-point (point)))))
 
 ;;;###autoload
@@ -178,11 +183,16 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
     (error "No region active")))
 
 (defun macrursors--mark-previous-instance-of (string &optional end)
-  (let ((cursor-positions (macrursors--get-overlay-positions)))
-    (while (and (search-forward string end t -1)
-                (member (+ (point) (length string)) cursor-positions)))
-    (when (> (point) (or end (point-min)))
-      (macrursors--add-overlay-at-point (+ (point) (length string))))))
+  (let ((cursor-positions (macrursors--get-overlay-positions))
+        (matched))
+    (while (and (setq matched
+                      (re-search-forward string end t -1))
+                (member (match-end 0) cursor-positions)))
+    (if (or (not matched)
+            (<= (point) (or end (point-min)))
+            (member (match-end 0) cursor-positions))
+        (message "No more matches.")
+      (macrursors--add-overlay-at-point (match-end 0)))))
 
 ;;;###autoload
 (defun macrursors-mark-previous-instance-of ()
