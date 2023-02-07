@@ -144,8 +144,14 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
    #'overlay-start
    (or overlays macrursors--overlays)))
 
+(defun macrursors--string-to-symbol-regexp (symb)
+  "Return a regular expression that matches the string SYMB as a
+symbol and nothing else."
+  (concat "\\_<" (regexp-quote (substring-no-properties symb)) "\\_>"))
+
+;;;###autoload
 (defun macrursors--mark-all-instances-of (string orig-point &optional end)
-  (while (search-forward string end t)
+  (while (re-search-forward string end t)
     (unless (= (point) orig-point)
       (macrursors--add-overlay-at-point (point)))))
 
@@ -162,17 +168,27 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
     (cond
      (regexp (setq region regexp
                    orig-point (point)))
+     ;; Mark string from region
      ((use-region-p)
       (setq region (buffer-substring-no-properties
                     (region-beginning)
                     (region-end))
-            orig-point (region-end)))
-     (t (error "No region active")))
+            orig-point (region-end))
+      (when (< (point) (mark))
+        (exchange-point-and-mark)))
+     ;; Mark symbol at point
+     ((and-let* ((symb     (thing-at-point 'symbol))
+                 (symb-end (cdr (bounds-of-thing-at-point 'symbol))))
+        (setq region (macrursors--string-to-symbol-regexp symb)
+              orig-point symb-end)
+        t)
+      nil)
+     (t (user-error "No text to mark.")))
     (goto-char orig-point)
     (save-excursion
       (goto-char start)
       (macrursors--mark-all-instances-of region orig-point end))
-    (deactivate-mark)
+    (when (use-region-p) (deactivate-mark))
     (setq macrursors--instance region)
     (macrursors-start)))
 
@@ -192,18 +208,27 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 (defun macrursors-mark-next-instance-of ()
   (interactive)
   (when defining-kbd-macro (end-kbd-macro))
-  (if (use-region-p)
-      (progn
-	(let ((region (buffer-substring-no-properties (region-beginning)
-                                                      (region-end)))
-	      (end (and (macrursors--inside-secondary-selection)
-                        (overlay-end mouse-secondary-overlay))))
-	  (goto-char (region-end))
-          (save-excursion
-	    (macrursors--mark-next-instance-of region end))
-          (setq macrursors--instance region)
-	  (macrursors-start)))
-    (error "No region active")))
+  (let ((search-end (and (macrursors--inside-secondary-selection)
+                         (overlay-end mouse-secondary-overlay)))
+        region beg end)
+    (cond
+     ((use-region-p)
+      (setq beg (region-beginning)
+            end (region-end)
+            region (buffer-substring-no-properties beg end))
+      (when (< (point) (mark))
+        (exchange-point-and-mark)))
+     ((when-let ((symb     (thing-at-point 'symbol))
+                 (symb-end (cdr (bounds-of-thing-at-point 'symbol))))
+        (setq end symb-end
+              region (macrursors--string-to-symbol-regexp symb))
+        (goto-char symb-end))
+      nil)
+     (t (user-error "Nothing here to mark.")))
+    (save-excursion
+      (macrursors--mark-next-instance-of region search-end))
+    (setq macrursors--instance region)
+    (macrursors-start)))
 
 (defun macrursors--mark-previous-instance-of (string &optional end)
   (let ((cursor-positions (macrursors--get-overlay-positions))
@@ -221,20 +246,34 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 (defun macrursors-mark-previous-instance-of ()
   (interactive)
   (when defining-kbd-macro (end-kbd-macro))
-  (if (use-region-p)
-      (progn
-	(let ((region (buffer-substring-no-properties
-                       (region-beginning) (region-end)))
-	      (end (if (macrursors--inside-secondary-selection)
-		       (overlay-start mouse-secondary-overlay)
-		     0)))
-          (goto-char (region-end))
-          (save-excursion
-	    (goto-char (region-beginning))
-	    (macrursors--mark-previous-instance-of region end))
-          (setq macrursors--instance region)
-          (macrursors-start)))
-    (error "No region active")))
+  (let ((search-end (if (macrursors--inside-secondary-selection)
+		         (overlay-start mouse-secondary-overlay)
+		       0))
+        region beg end)
+    (cond
+     ;; Mark string from region
+     ((use-region-p)
+      (setq beg (region-beginning)
+            end (region-end)
+            region (buffer-substring-no-properties beg end))
+      (when (< (point) (mark))
+        (exchange-point-and-mark)))
+     ;; Mark symbol at point
+     ((when-let ((symb     (thing-at-point 'symbol))
+                 (bounds   (bounds-of-thing-at-point 'symbol))
+                 (symb-beg (car bounds))
+                 (symb-end (cdr bounds)))
+        (setq beg symb-beg
+              end symb-end
+              region (macrursors--string-to-symbol-regexp symb))
+        (goto-char symb-end))
+      nil)
+     (t (user-error "Nothing here to mark.")))
+    (save-excursion
+      (goto-char beg)
+      (macrursors--mark-previous-instance-of region search-end))
+    (setq macrursors--instance region)
+    (macrursors-start)))
 
 (defun macrursors--forward-number ()
   (interactive)
