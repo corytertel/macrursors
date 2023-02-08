@@ -410,7 +410,8 @@ Else, mark all lines."
     (macrursors--remove-overlays)
     (macrursors-mode -1)))
 
-;; The following code snippets are taken directly from meow
+;; The following code snippets are originally taken directly from meow,
+;; but modified to fit this package.
 ;; They are used by the user for marking text as a secondary selection
 ;; https://github.com/meow-edit/meow
 
