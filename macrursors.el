@@ -12,7 +12,9 @@
 ;; 4. When done execute the macro at every point.
 
 ;; Heavily insired by meow's beacon-mode.
-;; There are a few code snippets from meow's beacon-mode.
+;; There are quite a few code snippets from meow's beacon-mode.
+;; Thanks to meow's devs for doing a lot of the heavy lifting,
+;; both conceptually and physically.
 ;; The faces were inspired by multiple-cursors.
 
 ;; TODO:
@@ -381,6 +383,79 @@ Else, mark all lines."
     (when defining-kbd-macro (end-kbd-macro))
     (macrursors--remove-overlays)
     (macrursors-mode -1)))
+
+;; The following code snippets are taken directly from meow
+;; They are used by the user for marking text as a secondary selection
+;; https://github.com/meow-edit/meow
+
+(defun macrursors--second-sel-set-string (string)
+  (cond
+   ((macrursors--second-sel-buffer)
+    (with-current-buffer (overlay-buffer mouse-secondary-overlay)
+      (goto-char (overlay-start mouse-secondary-overlay))
+      (delete-region (overlay-start mouse-secondary-overlay) (overlay-end mouse-secondary-overlay))
+      (insert string)))
+   ((markerp mouse-secondary-start)
+    (with-current-buffer (marker-buffer mouse-secondary-start)
+      (goto-char (marker-position mouse-secondary-start))
+      (insert string)))))
+
+(defun macrursors--second-sel-get-string ()
+  (when (macrursors--second-sel-buffer)
+    (with-current-buffer (overlay-buffer mouse-secondary-overlay)
+      (buffer-substring-no-properties
+       (overlay-start mouse-secondary-overlay)
+       (overlay-end mouse-secondary-overlay)))))
+
+(defun macrursors--second-sel-buffer ()
+  (and (overlayp mouse-secondary-overlay)
+     (overlay-buffer mouse-secondary-overlay)))
+
+;;;###autoload
+(defun macrursors-grab ()
+  "Create secondary selection or a marker if no region available."
+  (interactive)
+  (if (region-active-p)
+      (secondary-selection-from-region)
+    (progn
+      (delete-overlay mouse-secondary-overlay)
+      (setq mouse-secondary-start (make-marker))
+      (move-marker mouse-secondary-start (point))))
+  (deactivate-mark t))
+
+;;;###autoload
+(defun macrursors-swap-grab ()
+  "Swap region and secondary selection."
+  (interactive)
+  (let* ((rbeg (region-beginning))
+         (rend (region-end))
+         (region-str (when (region-active-p) (buffer-substring-no-properties rbeg rend)))
+         (sel-str (macrursors--second-sel-get-string))
+         (next-marker (make-marker)))
+    (when region-str (delete-region rbeg rend))
+    (when sel-str (insert sel-str))
+    (move-marker next-marker (point))
+    (macrursors--second-sel-set-string (or region-str ""))
+    (when (overlayp mouse-secondary-overlay)
+      (delete-overlay mouse-secondary-overlay))
+    (setq mouse-secondary-start next-marker)
+    (deactivate-mark t)))
+
+;;;###autoload
+(defun macrursors-sync-grab ()
+  "Sync secondary selection with current region."
+  (interactive)
+  (when (region-active-p)
+    (let* ((rbeg (region-beginning))
+           (rend (region-end))
+           (region-str (buffer-substring-no-properties rbeg rend))
+           (next-marker (make-marker)))
+      (move-marker next-marker (point))
+      (macrursors--second-sel-set-string region-str)
+      (when (overlayp mouse-secondary-overlay)
+	(delete-overlay mouse-secondary-overlay))
+      (setq mouse-secondary-start next-marker)
+      (deactivate-mark t))))
 
 (provide 'macrursors)
 ;;; macrursors.el ends here

@@ -1,5 +1,5 @@
 #+TITLE: Macrursors
-A faster, more minimal alternative to [[https://github.com/magnars/multiple-cursors.el][multiple-cursors.el]].
+A faster and extreme minimal alternative to [[https://github.com/magnars/multiple-cursors.el][multiple-cursors.el]].
 
 * Overview
 
@@ -7,7 +7,7 @@ Macrursors leverages kmacro and emacs' overlays to make a fast and extremely min
 
 ** Speed
 
-Macrursors is fast! Multiple cursors runs in O(n*m) whereas Macrursors runs in O(n),
+Macrursors is fast! Multiple cursors runs in ~O(n*m)~ whereas Macrursors runs in ~O(n)~,
 where ~n = # of cursors~ and ~m = # of actions~. A much needed improvement. This is due to macrursors not having live feedback on every cursor. Edits at each cursors are applied after you are done, not while editing. Applying after means that the expensive cost of edits at many places is only experienced when you are done, not while you are working.
 
 Macrursors also gives you the abilty to temporily turn off minor modes, change the setting of variables, and more while the edits are applying. Anything that is unneeded while applying edits (like auto-complete popups) is recommended to be temporarily turned off to further increase the speed.
@@ -100,8 +100,11 @@ Example set up of macrursors.
      (beacon-mode 1)))
   :config
   (define-prefix-command 'macrursors-mark-map)
-  (global-set-key (kbd "C-'") #'macrursors-mark-next-instance-of)
-  (global-set-key (kbd "C-\"") #'macrursors-mark-previous-instance-of)
+  (global-set-key (kbd "M-SPC") #'macrursors-grab)
+  (global-set-key (kbd "C-c SPC") #'macrursors-swap-grab)
+  (global-set-key (kbd "C-c S-SPC") #'macrursors-sync-grab)
+  (global-set-key (kbd "C->") #'macrursors-mark-next-instance-of)
+  (global-set-key (kbd "C-<") #'macrursors-mark-previous-instance-of)
   (global-set-key (kbd "C-;") 'macrursors-mark-map)
   (define-key macrursors-mark-map (kbd "C-;") #'macrursors-mark-all-lines-or-instances)
   (define-key macrursors-mark-map (kbd ";") #'macrursors-mark-all-lines-or-instances)
