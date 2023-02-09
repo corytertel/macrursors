@@ -59,22 +59,22 @@ rendered or shift text."
   "The face used for fake regions."
   :group 'macrursors)
 
-(defcustom macrursors-preapply-command (lambda ())
-  "The command to run before macros are applied.
+(defcustom macrursors-pre-finish-hook nil
+  "Hook run before macros are applied.
 Useful for optizationing the speed of the macro application.
 A simple solution is to disable all minor modes that are purely
-aesthetic in `macrursors-preapply-command'
-and re-enable them in `macrursors-postapply-command'."
-  :type 'function
+aesthetic in `macrursors-pre-finish-hook'
+and re-enable them in `macrursors-post-finish-hook'."
+  :type 'hook
   :group 'macrursors)
 
-(defcustom macrursors-postapply-command (lambda ())
-  "The command to run after macros are applied.
+(defcustom macrursors-post-finish-hook nil
+  "Hook run after macros are applied.
 Useful for optizationing the speed of the macro application.
 A simple solution is to disable all minor modes that are purely
-aesthetic in `macrursors-preapply-command'
-and re-enable them in `macrursors-postapply-command'."
-  :type 'function
+aesthetic in `macrursors-pre-finish-hook'
+and re-enable them in `macrursors-post-finish-hook'."
+  :type 'hook
   :group 'macrursors)
 
 (defcustom macrursors-apply-keys "C-;"
@@ -382,6 +382,15 @@ Else, mark all lines."
   (macrursors-apply-command #'execute-kbd-macro
                             last-kbd-macro))
 
+(defun macrursors--toggle-modes (func &rest args)
+  (cond
+   ((not (symbolp func)) (funcall func))
+   ((and (fboundp func)
+         (string-suffix-p "-mode" (symbol-name func)))
+    (apply func args)))
+  ;; Return nil to continue hook processing.
+  nil)
+
 ;; NOTE DOES NOT WORK WHEN CALLED FROM M-x!!!
 ;; FIXME applying time
 ;;;###autoload
@@ -390,9 +399,11 @@ Else, mark all lines."
   (if (not defining-kbd-macro)
       (error "Not defining a macro")
     (end-kbd-macro)
-    (funcall macrursors-preapply-command)
+    (run-hook-wrapped 'macrursors-pre-finish-hook
+                      #'macrursors--toggle-modes -1)
     (macrursors--apply-kmacros)
-    (funcall macrursors-postapply-command)
+    (run-hook-wrapped 'macrursors-post-finish-hook
+                      #'macrursors--toggle-modes +1)
     (macrursors--remove-overlays)
     (macrursors-mode -1)))
 
