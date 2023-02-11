@@ -190,7 +190,8 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
                                                       (region-end)))
 	      (end (and (macrursors--inside-secondary-selection)
                         (overlay-end mouse-secondary-overlay))))
-	  (goto-char (region-end))
+          (when (< (point) (mark))
+            (exchange-point-and-mark))
           (save-excursion
 	    (macrursors--mark-next-instance-of region end))
 	  (macrursors-start)))
@@ -219,7 +220,8 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
 	      (end (if (macrursors--inside-secondary-selection)
 		       (overlay-start mouse-secondary-overlay)
 		     0)))
-          (goto-char (region-end))
+          (when (< (point) (mark))
+            (exchange-point-and-mark))
           (save-excursion
 	    (goto-char (region-beginning))
 	    (macrursors--mark-previous-instance-of region end))
