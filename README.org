@@ -13,11 +13,9 @@ where ~n = # of cursors~ and ~m = # of actions~. A much needed improvement. This
 Macrursors also gives you the abilty to temporily turn off minor modes, change the setting of variables, and more while the edits are applying. Anything that is unneeded while applying edits (like auto-complete popups) is recommended to be temporarily turned off to further increase the speed.
 
 #+begin_src emacs-lisp
-;; The following code will turn off corfu only when the edits are being applied
-(setq macrursors-preapply-command
-  (lambda () (corfu-mode -1)))
-(setq macrursors-postapply-command
-  (lambda () (corfu-mode 1)))
+  ;; The following code will turn off corfu only when the edits are being applied
+  (add-hook 'macrursors-pre-finish-hook 'corfu-mode)
+  (add-hook 'macrursors-post-finish-hook 'corfu-mode)
 #+end_src
 
 ** Size
@@ -86,35 +84,27 @@ Macrursors is not yet on Melpa, so you will need to manually add ~macrursors.el~
 Example set up of macrursors.
 
 #+begin_src emacs-lisp
-(use-package macrursors
-  :custom
-  (macrursors-preapply-command
-   (lambda ()
-     (corfu-mode -1)
-     (goggles-mode -1)
-     (beacon-mode -1)))
-  (macrursors-postapply-command
-   (lambda ()
-     (corfu-mode 1)
-     (goggles-mode 1)
-     (beacon-mode 1)))
-  :config
-  (define-prefix-command 'macrursors-mark-map)
-  (global-set-key (kbd "M-SPC") #'macrursors-grab)
-  (global-set-key (kbd "C-c SPC") #'macrursors-swap-grab)
-  (global-set-key (kbd "C-c S-SPC") #'macrursors-sync-grab)
-  (global-set-key (kbd "C->") #'macrursors-mark-next-instance-of)
-  (global-set-key (kbd "C-<") #'macrursors-mark-previous-instance-of)
-  (global-set-key (kbd "C-;") 'macrursors-mark-map)
-  (define-key macrursors-mark-map (kbd "C-;") #'macrursors-mark-all-lines-or-instances)
-  (define-key macrursors-mark-map (kbd ";") #'macrursors-mark-all-lines-or-instances)
-  (define-key macrursors-mark-map (kbd "l") #'macrursors-mark-all-lists)
-  (define-key macrursors-mark-map (kbd "s") #'macrursors-mark-all-symbols)
-  (define-key macrursors-mark-map (kbd "e") #'macrursors-mark-all-sexps)
-  (define-key macrursors-mark-map (kbd "f") #'macrursors-mark-all-defuns)
-  (define-key macrursors-mark-map (kbd "n") #'macrursors-mark-all-numbers)
-  (define-key macrursors-mark-map (kbd ".") #'macrursors-mark-all-sentences)
-  (define-key macrursors-mark-map (kbd "r") #'macrursors-mark-all-lines))
+  (use-package macrursors
+    :config
+    (dolist (mode '(corfu-mode goggles-mode beacon-mode))
+      (add-hook 'macrursors-pre-finish-hook mode)
+      (add-hook 'macrursors-post-finish-hook mode))
+    (define-prefix-command 'macrursors-mark-map)
+    (global-set-key (kbd "M-SPC") #'macrursors-grab)
+    (global-set-key (kbd "C-c SPC") #'macrursors-swap-grab)
+    (global-set-key (kbd "C-c S-SPC") #'macrursors-sync-grab)
+    (global-set-key (kbd "C->") #'macrursors-mark-next-instance-of)
+    (global-set-key (kbd "C-<") #'macrursors-mark-previous-instance-of)
+    (global-set-key (kbd "C-;") 'macrursors-mark-map)
+    (define-key macrursors-mark-map (kbd "C-;") #'macrursors-mark-all-lines-or-instances)
+    (define-key macrursors-mark-map (kbd ";") #'macrursors-mark-all-lines-or-instances)
+    (define-key macrursors-mark-map (kbd "l") #'macrursors-mark-all-lists)
+    (define-key macrursors-mark-map (kbd "s") #'macrursors-mark-all-symbols)
+    (define-key macrursors-mark-map (kbd "e") #'macrursors-mark-all-sexps)
+    (define-key macrursors-mark-map (kbd "f") #'macrursors-mark-all-defuns)
+    (define-key macrursors-mark-map (kbd "n") #'macrursors-mark-all-numbers)
+    (define-key macrursors-mark-map (kbd ".") #'macrursors-mark-all-sentences)
+    (define-key macrursors-mark-map (kbd "r") #'macrursors-mark-all-lines))
 #+end_src
 
 * Documentation
