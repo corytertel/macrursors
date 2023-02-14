@@ -244,6 +244,34 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
       (goto-char closest-ahead))))
 
 ;;;###autoload
+(defun macrursors-mark-from-isearch (&optional arg)
+  "Make macrursors from the last search string."
+  (interactive "P")
+  (or isearch-success (user-error "Nothing to match."))
+  (let* ((regexp
+          (cond
+           ((functionp isearch-regexp-function)
+            (funcall isearch-regexp-function isearch-string))
+           (isearch-regexp-function (word-search-regexp isearch-string))
+           (isearch-regexp isearch-string)
+           (t (regexp-quote isearch-string))))
+         (selection-p (macrursors--inside-secondary-selection))
+         (search-start (if selection-p
+		           (overlay-start mouse-secondary-overlay)
+                         0))
+         (search-end (and selection-p
+                          (overlay-end mouse-secondary-overlay)))
+         orig-point)
+    (goto-char (max (point) isearch-other-end))
+    (isearch-exit)
+    (setq orig-point (point))
+    (save-excursion
+      (goto-char search-start)
+      (macrursors--mark-all-instances-of regexp orig-point search-end))
+    (setq macrursors--instance regexp)
+    (macrursors-start)))
+
+;;;###autoload
 (defmacro macrursors--defun-mark-all (name thing func)
   `(defun ,name ()
      (interactive)
