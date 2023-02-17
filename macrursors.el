@@ -114,6 +114,8 @@ and re-enable them in `macrursors-post-finish-hook'."
         (point)
         (overlay-end mouse-secondary-overlay))))
 
+
+;;;; Macrursor overlay manipulation functions
 ;; TODO maybe add support for multiple types of cursor types
 (defun macrursors--add-overlay-at-point (pos)
   "Create an overlay to draw a fake cursor at POS."
@@ -144,6 +146,8 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
    #'overlay-start
    (or overlays macrursors--overlays)))
 
+
+;;;; Generic functions and commands for creating macrursors.
 (defun macrursors--instance-with-bounds (&optional regexp)
   "Return an appropriate string or object-type (symbol) for
 creating macrursors.
@@ -286,6 +290,8 @@ beginning and ending positions."
       (push-mark)
       (goto-char closest-ahead))))
 
+
+;;;; Commands to create macrursors from Isearch
 (defun macrursors--isearch-regexp ()
   (or isearch-success (user-error "Nothing to match."))
   (prog1
@@ -347,6 +353,8 @@ beginning and ending positions."
     (setq macrursors--instance regexp)
     (macrursors-start)))
 
+
+;;;; Commands to create macrursors at syntactic units ("things")
 ;;;###autoload
 (defmacro macrursors--defun-mark-all (name thing func)
   `(defun ,name ()
@@ -503,6 +511,8 @@ Else, mark all lines."
       (macrursors-mark-all-instances-of)
     (macrursors-mark-all-lines)))
 
+
+;;;; Functions that apply the defined macro across all macrursors
 (defun macrursors-start ()
   "Start kmacro recording, apply to all cursors when terminate."
   (interactive)
