@@ -185,7 +185,7 @@ beginning and ending positions."
             symb-beg symb-end)))))
 
 (defun macrursors--mark-all-instances-of (string orig-point &optional end)
-  (while (re-search-forward string end t)
+  (while (re-search-forward (regexp-quote string) end t)
     (unless (= (point) orig-point)
       (macrursors--add-overlay-at-point (point)))))
 
@@ -216,7 +216,7 @@ beginning and ending positions."
   (let ((cursor-positions (macrursors--get-overlay-positions))
         (matched-p))
     (while (and (setq matched-p
-                      (re-search-forward string end t 1))
+                      (re-search-forward (regexp-quote string) end t 1))
                 (member (point) cursor-positions)))
     (if (or (not matched-p)
             (> (point) (or end (point-max)))
@@ -251,7 +251,7 @@ beginning and ending positions."
   (let ((cursor-positions (macrursors--get-overlay-positions))
         (matched))
     (while (and (setq matched
-                      (re-search-forward string start t -1))
+                      (re-search-forward (regexp-quote string) start t -1))
                 (member (match-end 0) cursor-positions)))
     (if (or (not matched)
             (<= (point) (or start (point-min)))
