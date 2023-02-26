@@ -162,8 +162,9 @@ beginning and ending positions."
    ((use-region-p)
     (when (< (point) (mark))
       (exchange-point-and-mark))
-    (list (buffer-substring-no-properties
-           (region-beginning) (region-end))
+    (list (regexp-quote
+           (buffer-substring-no-properties
+            (region-beginning) (region-end)))
           (region-beginning)
           (region-end)))
    ;; Cursors active -- reuse instance
