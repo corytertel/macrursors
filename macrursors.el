@@ -47,7 +47,7 @@
 
 (defcustom macrursors-match-cursor-style t
   "If non-nil, attempt to match the cursor style that the user has selected.
-Namely, use vertical bars the user has configured Emacs to use that cursor.
+Namely, use vertical bars if the user has configured Emacs to use that cursor.
 If nil, just use standard rectangle cursors for all fake cursors.
 In some modes/themes, the bar fake cursors are either not
 rendered or shift text."
