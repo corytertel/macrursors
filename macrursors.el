@@ -47,7 +47,7 @@
 
 (defcustom macrursors-match-cursor-style t
   "If non-nil, attempt to match the cursor style that the user has selected.
-Namely, use vertical bars the user has configured Emacs to use that cursor.
+Namely, use vertical bars if the user has configured Emacs to use that cursor.
 If nil, just use standard rectangle cursors for all fake cursors.
 In some modes/themes, the bar fake cursors are either not
 rendered or shift text."
@@ -119,17 +119,18 @@ and re-enable them in `macrursors-post-finish-hook'."
 ;; TODO maybe add support for multiple types of cursor types
 (defun macrursors--add-overlay-at-point (pos)
   "Create an overlay to draw a fake cursor at POS."
-  (let ((ov (make-overlay pos (1+ pos))))
+  (let* ((cursor-type (if (eq cursor-type t)
+	                  (frame-parameter nil 'cursor-type)
+	                cursor-type))
+         (ov (make-overlay pos (if (eq cursor-type 'bar)
+                                   pos
+                                 (1+ pos)))))
     (overlay-put ov 'face
 		 (cond
 		  ((not macrursors-match-cursor-style) 'macrursors-cursor-face)
-		  ((let ((cursor-type
-			  (if (eq cursor-type t)
-			      (frame-parameter nil 'cursor-type)
-			    cursor-type)))
-		     (or (eq cursor-type 'bar)
-			 (and (listp cursor-type)
-			      (eq (car cursor-type) 'bar)))) 'macrursors-cursor-bar-face)
+		  ((or (eq cursor-type 'bar)
+		       (and (listp cursor-type)
+			    (eq (car cursor-type) 'bar))) 'macrursors-cursor-bar-face)
 		  (t 'macrursors-cursor-face)))
     (overlay-put ov 'macrursors-type 'cursor)
     (push ov macrursors--overlays)))
