@@ -1,5 +1,5 @@
 #+TITLE: Macrursors
-A faster and extreme minimal alternative to [[https://github.com/magnars/multiple-cursors.el][multiple-cursors.el]].
+An extremely fast and minimal alternative to [[https://github.com/magnars/multiple-cursors.el][multiple-cursors.el]].
 
 * Overview
 
@@ -7,8 +7,11 @@ Macrursors leverages kmacro and emacs' overlays to make a fast and extremely min
 
 ** Speed
 
-Macrursors is fast! Multiple cursors runs in ~O(n*m)~ whereas Macrursors runs in ~O(n)~,
-where ~n = # of cursors~ and ~m = # of actions~. A much needed improvement. This is due to macrursors not having live feedback on every cursor. Edits at each cursors are applied after you are done, not while editing. Applying after means that the expensive cost of edits at many places is only experienced when you are done, not while you are working.
+Macrursors is fast! 
+
+*There is no overhead.* Unlike multiple-cursors which applies edits to each cursor while you are multi-editing, macrursors waits till you are finished. While there is no live feedback on your cursors, you can edit overhead-free.
+
+Macrursors only jumps to each cursor once. Multiple-cursors will jump to each cursor in successive order to apply each action. Instead, macrursors will apply all actions at once at each cursor, limiting the number of jumps to the number of cursors (~O(n)~ rather than ~O(n*m)~).
 
 Macrursors also gives you the abilty to temporily turn off minor modes, change the setting of variables, and more while the edits are applying. Anything that is unneeded while applying edits (like auto-complete popups) is recommended to be temporarily turned off to further increase the speed.
 
