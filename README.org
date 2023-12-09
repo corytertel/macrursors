@@ -111,4 +111,4 @@ Example set up of macrursors.
 * Documentation
 
 * License
-Copyright (c) 2023 Licensed under the AGPL3 License.
+Copyright (c) 2023 Licensed under the GPL3 License.
