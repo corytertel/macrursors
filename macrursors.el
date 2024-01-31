@@ -116,22 +116,23 @@ and re-enable them in `macrursors-post-finish-hook'."
 
 
 ;;;; Macrursor overlay manipulation functions
-;; TODO maybe add support for multiple types of cursor types
+
 (defun macrursors--add-overlay-at-point (pos)
   "Create an overlay to draw a fake cursor at POS."
   (let* ((cursor-type (if (eq cursor-type t)
 	                  (frame-parameter nil 'cursor-type)
 	                cursor-type))
-         (ov (make-overlay pos (if (eq cursor-type 'bar)
-                                   pos
-                                 (1+ pos)))))
-    (overlay-put ov 'face
-		 (cond
-		  ((not macrursors-match-cursor-style) 'macrursors-cursor-face)
-		  ((or (eq cursor-type 'bar)
-		       (and (listp cursor-type)
-			    (eq (car cursor-type) 'bar))) 'macrursors-cursor-bar-face)
-		  (t 'macrursors-cursor-face)))
+         ov)
+    (if (and macrursors-match-cursor-style
+             (or (eq cursor-type 'bar)
+		 (and (listp cursor-type)
+		      (eq (car cursor-type) 'bar))))
+        (overlay-put (setq ov (make-overlay pos pos))
+                     'before-string
+                     (propertize "​"  ; ZERO WIDTH SPACE
+                                 'face 'macrursors-cursor-bar-face))
+      (overlay-put (setq ov (make-overlay pos (1+ pos)))
+                   'face 'macrursors-cursor-face))
     (overlay-put ov 'macrursors-type 'cursor)
     (push ov macrursors--overlays)))
 
