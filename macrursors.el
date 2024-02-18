@@ -59,6 +59,12 @@ rendered or shift text."
   "The face used for fake regions."
   :group 'macrursors)
 
+(defcustom macrursors--fake-cursor-rel-pos 'end
+  "The position of the fake cursor relative to the marked item.
+Default value is end meaning that fake cursors are placed at the
+end of the marked items. Other possible values are end-1, beg."
+  :type 'symbol)
+
 (defcustom macrursors-pre-finish-hook nil
   "Hook run before macros are applied.
 Useful for optizationing the speed of the macro application.
@@ -182,14 +188,14 @@ beginning and ending positions."
                 (bounds   (bounds-of-thing-at-point 'symbol))
                 (symb-beg (car bounds))
                 (symb-end (cdr bounds)))
-      (goto-char symb-end)
       (list (concat "\\_<" (regexp-quote (substring-no-properties symb)) "\\_>")
             symb-beg symb-end)))))
 
 (defun macrursors--mark-all-instances-of (string orig-point &optional end)
-  (while (re-search-forward string end t)
-    (unless (= (point) orig-point)
-      (macrursors--add-overlay-at-point (point)))))
+  (while-let (((re-search-forward string end t))
+              (pos (macrursors--cursor-pos)))
+    (unless (= pos orig-point)
+      (macrursors--add-overlay-at-point pos))))
 
 ;;;###autoload
 (defun macrursors-mark-all-instances-of (&optional regexp)
@@ -200,39 +206,52 @@ beginning and ending positions."
                         0))
                (end (and selection-p
                          (overlay-end mouse-secondary-overlay)))
-               (`(,region ,_ ,orig-point) (macrursors--instance-with-bounds regexp)))
-    (goto-char orig-point)
+               (`(,region ,orig-beg ,orig-end) (macrursors--instance-with-bounds regexp)))
     (save-excursion
       (goto-char start)
       (cond
        ((stringp region)
-        (macrursors--mark-all-instances-of region orig-point end))
+        (macrursors--mark-all-instances-of region (macrursors--cursor-pos orig-beg orig-end) end))
        ((symbolp region)
         (funcall (intern (concat "macrursors-mark-all-"
                                  (symbol-name region) "s"))))))
     (when (use-region-p) (deactivate-mark))
     (setq macrursors--instance region)
+    (goto-char (macrursors--cursor-pos orig-beg orig-end))
     (macrursors-start)))
+
+(defun macrursors--cursor-pos (&optional beg end)
+  "Return position of a fake cursor.
+Position is chosen according to the value of
+`macrursors--fake-cursor-rel-pos'. Bounds of the marked item are
+passed as BEG and END."
+  (let ((beg (or beg (match-beginning 0)))
+        (end (or end (match-end 0))))
+    (pcase macrursors--fake-cursor-rel-pos
+      ('end end)
+      ('end-1 (1- end))
+      ('beg beg))))
 
 (defun macrursors--mark-next-instance-of (string &optional end)
   (let ((cursor-positions (macrursors--get-overlay-positions))
         (matched-p))
     (while (and (setq matched-p
                       (re-search-forward string end t 1))
-                (member (point) cursor-positions)))
+                (member (macrursors--cursor-pos) cursor-positions)))
     (if (or (not matched-p)
             (> (point) (or end (point-max)))
-            (member (point) cursor-positions))
+            (member (macrursors--cursor-pos) cursor-positions))
         (message "No more matches.")
-      (macrursors--add-overlay-at-point (point)))))
+      (macrursors--add-overlay-at-point (macrursors--cursor-pos)))))
 
 ;;;###autoload
 (defun macrursors-mark-next-instance-of (&optional arg)
   (interactive "p")
   (when defining-kbd-macro (end-kbd-macro))
   (pcase-let ((search-end (and (macrursors--inside-secondary-selection)
-                         (overlay-end mouse-secondary-overlay)))
-              (`(,region ,_ ,end) (macrursors--instance-with-bounds)))
+                               (overlay-end mouse-secondary-overlay)))
+              (`(,region ,beg ,end) (macrursors--instance-with-bounds)))
+
     (save-excursion
       (cond
        ((< arg 0)  ; Remove cursors
@@ -247,19 +266,21 @@ beginning and ending positions."
         (setq macrursors--instance region)
         (macrursors-start))
        ; No region or symbol-name, mark line
-       (t (macrursors-mark-next-line arg search-end))))))
+       (t (macrursors-mark-next-line arg search-end))))
+    (when (and beg end)
+      (goto-char (macrursors--cursor-pos beg end)))))
 
 (defun macrursors--mark-previous-instance-of (string &optional start)
   (let ((cursor-positions (macrursors--get-overlay-positions))
         (matched))
     (while (and (setq matched
                       (re-search-forward string start t -1))
-                (member (match-end 0) cursor-positions)))
+                (member (macrursors--cursor-pos) cursor-positions)))
     (if (or (not matched)
             (<= (point) (or start (point-min)))
-            (member (match-end 0) cursor-positions))
+            (member (macrursors--cursor-pos) cursor-positions))
         (message "No more matches.")
-      (macrursors--add-overlay-at-point (match-end 0)))))
+      (macrursors--add-overlay-at-point (macrursors--cursor-pos)))))
 
 ;;;###autoload
 (defun macrursors-mark-previous-instance-of (&optional arg)
@@ -283,7 +304,9 @@ beginning and ending positions."
         (setq macrursors--instance region)
         (macrursors-start))
        ; No region or symbol-name, mark line
-       (t (macrursors-mark-previous-line arg search-start))))))
+       (t (macrursors-mark-previous-line arg search-start))))
+    (when (and beg end)
+      (goto-char (macrursors--cursor-pos beg end)))))
 
 (defun macrursors--forward-number ()
   (interactive)
@@ -315,9 +338,9 @@ beginning and ending positions."
          (search-end (and selection-p
                           (overlay-end mouse-secondary-overlay)))
          orig-point)
-    (goto-char (max (point) isearch-other-end))
+    (goto-char (setq orig-point (macrursors--cursor-pos (min (point) isearch-other-end)
+                                                        (max (point) isearch-other-end))))
     (isearch-exit)
-    (setq orig-point (point))
     (save-excursion
       (goto-char search-start)
       (macrursors--mark-all-instances-of regexp orig-point search-end))
@@ -329,10 +352,15 @@ beginning and ending positions."
   (interactive "p")
   (let* ((regexp (macrursors--isearch-regexp))
          (search-end (and (macrursors--inside-secondary-selection)
-                          (overlay-end mouse-secondary-overlay))))
-    (goto-char (max (point) isearch-other-end))
+                          (overlay-end mouse-secondary-overlay)))
+         search-start-pos)
+
+    (setq search-start-pos (max (point) isearch-other-end))
+    (goto-char (macrursors--cursor-pos (min (point) isearch-other-end)
+                                       search-start-pos))
     (isearch-exit)
     (save-excursion
+      (goto-char search-start-pos)
       (dotimes (_ arg)
         (macrursors--mark-next-instance-of regexp search-end)))
     (setq macrursors--instance regexp)
@@ -344,12 +372,12 @@ beginning and ending positions."
   (let* ((regexp (macrursors--isearch-regexp))
          (search-start (and (macrursors--inside-secondary-selection)
                           (overlay-start mouse-secondary-overlay)))
-         orig-point)
-    (setq orig-point (min (point) isearch-other-end))
-    (goto-char (max (point) isearch-other-end))
+         search-start-pos)
+    (setq search-start-pos (min (point) isearch-other-end))
+    (goto-char (macrursors--cursor-pos search-start-pos (max (point) isearch-other-end)))
     (isearch-exit)
     (save-excursion
-      (goto-char orig-point)
+      (goto-char search-start-pos)
       (dotimes (_ arg)
         (macrursors--mark-previous-instance-of regexp search-start)))
     (setq macrursors--instance regexp)
@@ -361,28 +389,39 @@ beginning and ending positions."
 (defmacro macrursors--defun-mark-all (name thing func)
   `(defun ,name ()
      (interactive)
-     (when mark-active (deactivate-mark))
-     (let ((end-of-thing (cdr (bounds-of-thing-at-point ,thing))))
-       (if end-of-thing
-	   (goto-char end-of-thing)
-	 (funcall ,func)))
-     (let ((orig-point (point))
-	   (start (if (macrursors--inside-secondary-selection)
-		      (overlay-start mouse-secondary-overlay)
-		    0))
-	   (end (if (macrursors--inside-secondary-selection)
-		    (overlay-end mouse-secondary-overlay)
-		  (point-max))))
-       (save-excursion
-	 (goto-char start)
-	 (while (and (let ((curr (point)))
-		     (funcall ,func)
-		     (not (= (point) curr)))
-		   (<= (point) end))
-	   (unless (= (point) orig-point)
-	     (macrursors--add-overlay-at-point (point)))))
-       (setq macrursors--instance ,thing)
-       (macrursors-start))))
+     (macrursors--mark-thing-impl ,thing ,func)))
+
+(defun macrursors--mark-thing-impl (thing forward-func)
+  "Create a fake cursor for a given THING.
+FORWARD-FUNC is called for moving accross things."
+  (when mark-active (deactivate-mark))
+  (let* ((bounds (bounds-of-thing-at-point thing))
+         (beg-of-thing (car bounds))
+         (end-of-thing (cdr bounds)))
+    (when (null bounds)
+      (funcall forward-func)
+      (pcase-setq `(,beg-of-thing . ,end-of-thing) (bounds-of-thing-at-point thing)))
+    (goto-char (macrursors--cursor-pos beg-of-thing end-of-thing))
+
+    (let ((orig-point (point))
+          (start (if (macrursors--inside-secondary-selection)
+                     (overlay-start mouse-secondary-overlay)
+                   0))
+          (end (if (macrursors--inside-secondary-selection)
+                   (overlay-end mouse-secondary-overlay)
+                 (point-max))))
+      (save-excursion
+        (goto-char start)
+        (while-let ((curr (point))
+                    ((funcall forward-func))
+                    ((not (= (point) curr)))
+                    ((<= (point) end)))
+          (let* ((bounds (bounds-of-thing-at-point thing))
+                 (cursor-pos (macrursors--cursor-pos (car bounds) (cdr bounds))))
+            (unless (= cursor-pos orig-point)
+              (macrursors--add-overlay-at-point cursor-pos)))))
+      (setq macrursors--instance thing)
+      (macrursors-start))))
 
 ;;;###autoload
 (macrursors--defun-mark-all macrursors-mark-all-words
