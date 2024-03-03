@@ -91,6 +91,12 @@ and re-enable them in `macrursors-post-finish-hook'."
 (defvar-local macrursors--instance nil
   "The thing last used to create macrursors.")
 
+(defvar-local macrursors--last-inst-range nil
+  "The last range of the thing used for creating of a fake cursor.")
+
+(defvar-local macrursors--nav-transient-active nil
+  "If value is t then transient `macrursors-nav-map' is active.")
+
 (define-minor-mode macrursors-mode
   "Minor mode for when macrursors in active."
   :lighter macrursors-mode-line
@@ -100,12 +106,35 @@ and re-enable them in `macrursors-post-finish-hook'."
     (define-key map (kbd "C-g") #'macrursors-early-quit)
     map))
 
+(defvar macrursors-nav-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "n" #'macrursors-goto-next-cursor)
+    (define-key map "p" #'macrursors-goto-prev-cursor)
+    (define-key map "x" #'macrursors-remove-cursor-and-goto-next)
+    (define-key map "X" #'macrursors-remove-cursor-and-goto-prev)
+    (define-key map "gg" #'macrursors-goto-first-cursor)
+    (define-key map "G" #'macrursors-goto-last-cursor)
+    (define-key map "go" #'macrursors-goto-orig-cursor)
+    (define-key map "r" #'macrursors-reset-kmacro)
+    map))
+
+(defun macrursors--transient-nav-on-exit ()
+  "The function to call when transient `macrursors-nav-map' is deactivated."
+  (setq macrursors--nav-transient-active nil))
+
+(defun macrursors--activate-transient-nav ()
+  "Activate transient `macrursors-nav-map'."
+  (setq macrursors--nav-transient-active t)
+  (set-transient-map macrursors-nav-map nil #'macrursors--transient-nav-on-exit))
+
 (defcustom macrursors-mode-line
-  '(" MAC:" (:eval (if macrursors--overlays
+  '(" MAC" (:eval (if macrursors--nav-transient-active "(nav)" ""))
+    ":"
+    (:eval (if macrursors--overlays
                        (format (propertize "%d/%d" 'face 'font-lock-warning-face)
-                        (1+ (cl-count-if (lambda (p) (< p (point))) macrursors--overlays
-                             :key #'overlay-start))
-                        (1+ (length macrursors--overlays)))
+                               (1+ (cl-count-if (lambda (p) (< p (point))) macrursors--overlays
+                                                :key #'overlay-start))
+                               (1+ (length macrursors--overlays)))
                      (propertize "1/1" 'face 'font-lock-warning-face))))
   "Mode-line format for Macrursors."
   :type 'string
@@ -153,6 +182,97 @@ If OVERLAYS in non-nil, return a list with the positions of OVERLAYS."
    #'overlay-start
    (or overlays macrursors--overlays)))
 
+(defun macrursors--finalize-overlays ()
+  "Sort overlays according its start position.
+This function is invoked before executing macros on fake cursors
+and before activating transient navigation map."
+  ;; We call finalize before entering nav transient state. So there is no point
+  ;; to repeat finalizing since overlays haven't changed since then.
+  (unless macrursors--nav-transient-active
+    (cl-sort macrursors--overlays #'< :key #'overlay-start)))
+
+;;;###autoload
+(defun macrursors-remove-cursor-at-point (&optional goto)
+  "Delete current fake cursor at point.
+If value of GOTO is \\='next/prev go to the next/previous fake
+cursor."
+  (interactive)
+  (when-let ((cursor-ov (seq-find (lambda (ov) (= (overlay-start ov) (point)))
+                                  macrursors--overlays)))
+
+    (cl-callf2 seq-remove (lambda (ov) (eq cursor-ov ov)) macrursors--overlays)
+    (delete-overlay cursor-ov))
+  (pcase goto
+    ('next (macrursors-goto-next-cursor))
+    ('prev (macrursors-goto-prev-cursor))
+    (_ (macrursors--activate-transient-nav))))
+
+;;;###autoload
+(defun macrursors-remove-cursor-and-goto-next ()
+  "Delete current fake cursor at point and go to the next one."
+  (interactive)
+  (macrursors-remove-cursor-at-point 'next))
+
+;;;###autoload
+(defun macrursors-remove-cursor-and-goto-prev ()
+  "Delete current fake cursor at point and go to the previous one."
+  (interactive)
+  (macrursors-remove-cursor-at-point 'prev))
+
+;;;###autoload
+(defun macrursors-goto-next-cursor ()
+  "Go to the next fake cursor."
+  (interactive)
+  (macrursors--finalize-overlays)
+  (when-let ((cursor-ov (seq-find (lambda (ov) (> (overlay-start ov) (point)))
+                                  macrursors--overlays)))
+    (goto-char (overlay-start cursor-ov)))
+  (macrursors--activate-transient-nav))
+
+;;;###autoload
+(defun macrursors-goto-prev-cursor ()
+  "Go to the previous fake cursor."
+  (interactive)
+  (macrursors--finalize-overlays)
+  (when-let ((cursor-ov (seq-find (lambda (ov) (< (overlay-start ov) (point)))
+                                  (reverse macrursors--overlays))))
+    (goto-char (overlay-start cursor-ov)))
+  (macrursors--activate-transient-nav))
+
+;;;###autoload
+(defun macrursors-goto-orig-cursor ()
+  "Go to the original position and reset current macro."
+  (interactive)
+  (pcase-let ((`(,beg ,end) macrursors--last-inst-range))
+    (when (and beg end)
+      (goto-char (macrursors--cursor-pos beg end))))
+  (macrursors-reset-kmacro))
+
+;;;###autoload
+(defun macrursors-goto-first-cursor ()
+  "Go to the first fake cursor."
+  (interactive)
+  (macrursors--finalize-overlays)
+  (when-let ((cursor-ov (car macrursors--overlays)))
+    (goto-char (overlay-start cursor-ov)))
+  (macrursors--activate-transient-nav))
+
+;;;###autoload
+(defun macrursors-goto-last-cursor ()
+  "Go to the last fake cursor."
+  (interactive)
+  (macrursors--finalize-overlays)
+  (when-let ((cursor-ov (car (last macrursors--overlays))))
+    (goto-char (overlay-start cursor-ov)))
+  (macrursors--activate-transient-nav))
+
+;;;###autoload
+(defun macrursors-reset-kmacro ()
+  "Reset current macro."
+  (interactive)
+  (end-kbd-macro)
+  (macrursors-start))
+
 
 ;;;; Generic functions and commands for creating macrursors.
 (defun macrursors--instance-with-bounds (&optional regexp)
@@ -176,13 +296,9 @@ beginning and ending positions."
           (region-end)))
    ;; Cursors active -- reuse instance
    (macrursors-mode
-    (let ((region macrursors--instance))
-      (list region
-            (cond
-             ((stringp region) (- (point) (length region)))
-             ((symbolp region) (car (bounds-of-thing-at-point region)))
-             (t end))
-            (point))))
+    (append
+     (list macrursors--instance)
+     macrursors--last-inst-range))
    ;; Mark symbol at point
    ((when-let* ((symb     (thing-at-point 'symbol))
                 (bounds   (bounds-of-thing-at-point 'symbol))
@@ -217,6 +333,8 @@ beginning and ending positions."
                                  (symbol-name region) "s"))))))
     (when (use-region-p) (deactivate-mark))
     (setq macrursors--instance region)
+    (unless macrursors-mode
+      (setq macrursors--last-inst-range (list orig-beg orig-end)))
     (goto-char (macrursors--cursor-pos orig-beg orig-end))
     (macrursors-start)))
 
@@ -264,11 +382,12 @@ passed as BEG and END."
         (dotimes (_ arg)
           (macrursors--mark-next-instance-of region search-end))
         (setq macrursors--instance region)
+        (unless macrursors-mode
+          (setq macrursors--last-inst-range (list beg end)))
         (macrursors-start))
        ; No region or symbol-name, mark line
        (t (macrursors-mark-next-line arg search-end))))
-    (when (and beg end)
-      (goto-char (macrursors--cursor-pos beg end)))))
+    (goto-char (macrursors--cursor-pos beg end))))
 
 (defun macrursors--mark-previous-instance-of (string &optional start)
   (let ((cursor-positions (macrursors--get-overlay-positions))
@@ -302,11 +421,12 @@ passed as BEG and END."
         (dotimes (_ arg)
           (macrursors--mark-previous-instance-of region search-start))
         (setq macrursors--instance region)
+        (unless macrursors-mode
+          (setq macrursors--last-inst-range (list beg end)))
         (macrursors-start))
        ; No region or symbol-name, mark line
        (t (macrursors-mark-previous-line arg search-start))))
-    (when (and beg end)
-      (goto-char (macrursors--cursor-pos beg end)))))
+    (goto-char (macrursors--cursor-pos beg end))))
 
 (defun macrursors--forward-number ()
   (interactive)
@@ -337,14 +457,17 @@ passed as BEG and END."
                          0))
          (search-end (and selection-p
                           (overlay-end mouse-secondary-overlay)))
-         orig-point)
-    (goto-char (setq orig-point (macrursors--cursor-pos (min (point) isearch-other-end)
-                                                        (max (point) isearch-other-end))))
+         orig-beg orig-end orig-point)
+    (setq orig-beg (min (point) isearch-other-end)
+          orig-end (max (point) isearch-other-end))
+    (goto-char (setq orig-point (macrursors--cursor-pos orig-beg orig-end)))
     (isearch-exit)
     (save-excursion
       (goto-char search-start)
       (macrursors--mark-all-instances-of regexp orig-point search-end))
     (setq macrursors--instance regexp)
+    (unless macrursors-mode
+      (setq macrursors--last-inst-range (list orig-beg orig-end)))
     (macrursors-start)))
 
 ;;;###autoload
@@ -353,17 +476,19 @@ passed as BEG and END."
   (let* ((regexp (macrursors--isearch-regexp))
          (search-end (and (macrursors--inside-secondary-selection)
                           (overlay-end mouse-secondary-overlay)))
-         search-start-pos)
+         orig-beg orig-end)
 
-    (setq search-start-pos (max (point) isearch-other-end))
-    (goto-char (macrursors--cursor-pos (min (point) isearch-other-end)
-                                       search-start-pos))
+    (setq orig-beg (min (point) isearch-other-end)
+          orig-end (max (point) isearch-other-end))
+    (goto-char (macrursors--cursor-pos orig-beg orig-end))
     (isearch-exit)
     (save-excursion
-      (goto-char search-start-pos)
+      (goto-char orig-end)
       (dotimes (_ arg)
         (macrursors--mark-next-instance-of regexp search-end)))
     (setq macrursors--instance regexp)
+    (unless macrursors-mode
+      (setq macrursors--last-inst-range (list orig-beg orig-end)))
     (macrursors-start)))
 
 ;;;###autoload
@@ -372,15 +497,18 @@ passed as BEG and END."
   (let* ((regexp (macrursors--isearch-regexp))
          (search-start (and (macrursors--inside-secondary-selection)
                           (overlay-start mouse-secondary-overlay)))
-         search-start-pos)
-    (setq search-start-pos (min (point) isearch-other-end))
-    (goto-char (macrursors--cursor-pos search-start-pos (max (point) isearch-other-end)))
+         orig-beg orig-end)
+    (setq orig-beg (min (point) isearch-other-end)
+          orig-end (max (point) isearch-other-end))
+    (goto-char (macrursors--cursor-pos orig-beg orig-end))
     (isearch-exit)
     (save-excursion
-      (goto-char search-start-pos)
+      (goto-char orig-beg)
       (dotimes (_ arg)
         (macrursors--mark-previous-instance-of regexp search-start)))
     (setq macrursors--instance regexp)
+    (unless macrursors-mode
+      (setq macrursors--last-inst-range (list orig-beg orig-end)))
     (macrursors-start)))
 
 
@@ -421,6 +549,8 @@ FORWARD-FUNC is called for moving accross things."
             (unless (= cursor-pos orig-point)
               (macrursors--add-overlay-at-point cursor-pos)))))
       (setq macrursors--instance thing)
+      (unless macrursors-mode
+        (setq macrursors--last-inst-range (list beg-of-thing end-of-thing)))
       (macrursors-start))))
 
 ;;;###autoload
@@ -486,6 +616,8 @@ FORWARD-FUNC is called for moving accross things."
             (message "No more lines below."))))
       (when bounded
         (setq macrursors--instance 'line)
+        (unless macrursors-mode
+          (setq macrursors--last-inst-range (list (point) (point))))
         (macrursors-start)))))
 
 ;;;###autoload
@@ -512,6 +644,8 @@ FORWARD-FUNC is called for moving accross things."
               (macrursors--add-overlay-at-point (point))
             (message "No more lines above."))))
       (when bounded
+        (unless macrursors-mode
+          (setq macrursors--last-inst-range (list (point) (point))))
         (setq macrursors--instance 'line)
         (macrursors-start)))))
 
@@ -541,6 +675,8 @@ FORWARD-FUNC is called for moving accross things."
 		  (<= (point) end))
 	(macrursors--add-overlay-at-point (point))))
     (setq macrursors--instance 'line)
+    (unless macrursors-mode
+      (setq macrursors--last-inst-range (list (point) (point))))
     (macrursors-start)))
 
 ;;;###autoload
@@ -622,6 +758,7 @@ Else, mark all lines."
     (end-kbd-macro)
     (run-hook-wrapped 'macrursors-pre-finish-hook
                       #'macrursors--toggle-modes -1)
+    (macrursors--finalize-overlays)
     (macrursors--apply-kmacros)
     (run-hook-wrapped 'macrursors-post-finish-hook
                       #'macrursors--toggle-modes +1)
